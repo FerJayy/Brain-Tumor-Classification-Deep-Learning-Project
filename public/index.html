@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Brain Tumor Classifier (TFJS)</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.11.0/dist/tf.min.js"></script>
+  <style>body{font-family:Arial;padding:20px;}#preview{max-width:300px}</style>
+</head>
+<body>
+  <h2>Brain Tumor Classifier (client-side)</h2>
+  <input id="file" type="file" accept="image/*"><br><br>
+  <canvas id="canvas" width="64" height="64" style="display:none"></canvas>
+  <img id="preview" alt="preview"><p id="result">No prediction yet</p>
+
+  <script>
+    const LABELS = ["No Brain Tumor Detected","Brain Tumor Detected"];
+    let model;
+    async function loadModel(){
+      model = await tf.loadLayersModel('./model/model.json');
+      console.log('Model loaded');
+    }
+    loadModel();
+
+    document.getElementById('file').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file || !model) return;
+      const img = document.getElementById('preview');
+      img.src = URL.createObjectURL(file);
+
+      const image = new Image();
+      image.onload = async () => {
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(image, 0, 0, 64, 64);
+        const imgData = ctx.getImageData(0,0,64,64);
+        let tensor = tf.browser.fromPixels(imgData).toFloat();
+        tensor = tensor.div(255.0).expandDims(0); // [1,64,64,3]
+        const preds = model.predict(tensor);
+        const scores = await preds.data();
+        const classIndex = preds.argMax(-1).dataSync()[0];
+        document.getElementById('result').innerText =
+          LABELS[classIndex] + ' (scores: ' + Array.from(scores).map(s => s.toFixed(3)).join(', ') + ')';
+        tensor.dispose();
+        preds.dispose();
+      };
+      image.src = URL.createObjectURL(file);
+    });
+  </script>
+</body>
+</html>
